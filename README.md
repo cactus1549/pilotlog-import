@@ -1,55 +1,80 @@
 # pilotlog-import
 
-MVP React Native (Expo + TypeScript) app for turning SkyWest pairing screenshot text into Crewlounge Pilotlog CSV rows.
+React Native (Expo + TypeScript) app for turning SkyWest pairing screenshots into Crewlounge Pilotlog CSV rows.
 
 ## What this MVP does
 
-- Accepts OCR text (paste into app UI).
-- Parses SkyWest-style pairing lines into flight segments.
+- Picks a screenshot from Photos.
+- Runs OCR through an ML Kit adapter.
+- Parses SkyWest-style pairing text into flight segments.
 - Extracts crew fields (Captain, First Officer, Flight Attendant).
 - Cleans/normalizes date/time/airport values.
-- Exports Crewlounge-compatible CSV columns:
-  - `Flight, Date, A/C Type, Tail, Origin, Dest, Depart, Arrive, Block, Credit, Captain, First Officer, Flight Attendant`
+- Saves and opens the iOS/Android share sheet for CSV export.
+
+CSV columns produced:
+
+`Flight, Date, A/C Type, Tail, Origin, Dest, Depart, Arrive, Block, Credit, Captain, First Officer, Flight Attendant`
 
 ## Project layout
 
+- `/app/App.tsx` - UI flow (pick image, OCR, parse, save/share CSV)
 - `/app/src/parser/skywest.ts` - SkyWest text parsing + crew extraction
-- `/app/src/utils/normalize.ts` - reusable data cleanup/normalization helpers
+- `/app/src/utils/normalize.ts` - reusable cleanup/normalization helpers
 - `/app/src/export/csv.ts` - CSV serializer for Pilotlog headers
-- `/app/src/ocr/ocrEngine.ts` - OCR adapter interface (pluggable provider)
+- `/app/src/ocr/ocrEngine.ts` - OCR adapter (ML Kit + fallback behavior)
+- `/app/src/utils/csvFile.ts` - CSV file naming + MIME helpers
 - `/app/src/domain/types.ts` - shared domain types and CSV headers
-- `/app/src/__tests__/skywest.test.ts` - focused parser/export tests
+- `/app/src/__tests__/` - focused parser/export/helper tests
 
-## Why this is reusable
+## Install
 
-The parser/export pipeline is modular and provider-agnostic:
-
-1. **OCR provider layer** (`ocrEngine.ts`) can swap to Apple Vision, ML Kit, or cloud OCR.
-2. **Parser layer** (`parser/`) can add airline-specific parsers without changing exporter.
-3. **Normalizer layer** (`utils/normalize.ts`) is shared across all parser variants.
-4. **Exporter layer** (`export/csv.ts`) can target additional logbook formats.
-
-## Setup (Codespaces or local)
-
-Requirements:
+### 1) Prerequisites
 
 - Node.js 20+
 - npm 10+
+- Expo CLI via `npx` (no global install required)
 
-Install:
+### 2) Install dependencies
 
 ```bash
 cd /tmp/workspace/cactus1549/pilotlog-import/app
 npm install
 ```
 
-Run app:
+## How to run
+
+### Fast local/dev workflow (PC or Mac)
 
 ```bash
+cd /tmp/workspace/cactus1549/pilotlog-import/app
 npm run start
 ```
 
-Run checks:
+- Open with Expo tools.
+- You can still use **Load sample text** and **Save/Share CSV** logic.
+- Full native OCR requires a dev build (next section).
+
+### iPhone install with native OCR (Mac required)
+
+Because ML Kit OCR is a native module, use an Expo dev build (not plain Expo Go):
+
+```bash
+cd /tmp/workspace/cactus1549/pilotlog-import/app
+npx expo prebuild
+npx expo run:ios
+```
+
+Then on device/simulator:
+
+1. Tap **Pick image + OCR**.
+2. Choose SkyWest screenshot.
+3. Confirm parsed segment count.
+4. Tap **Save/Share CSV**.
+5. Share to Files/Drive/AirDrop and import to Crewlounge Pilotlog.
+
+## How to test
+
+From `/tmp/workspace/cactus1549/pilotlog-import/app`:
 
 ```bash
 npm run lint
@@ -57,25 +82,29 @@ npm run typecheck
 npm run test
 ```
 
-## Usage
+Test coverage includes:
 
-1. Launch app with `npm run start`.
-2. Paste OCR text from a SkyWest pairing screenshot into the **Raw OCR Text** box.
-3. Review parsed segment count.
-4. Copy generated **CSV Output** and save/import into Crewlounge Pilotlog.
+- Crew extraction and flight parsing
+- Date/time/duration normalization through parser behavior
+- CSV serialization format
+- CSV file helper naming and MIME metadata
 
-> Note: this MVP currently demonstrates OCR ingestion by text paste. Add a concrete OCR implementation via `OcrEngine` for direct image-to-text flow.
+## Usage notes
+
+- **Load sample text** gives a no-image path for parser verification.
+- **Raw OCR Text** remains editable, so you can correct OCR mistakes before export.
+- If OCR module is unavailable, app surfaces a clear error message.
 
 ## Assumptions
 
-- OCR output includes flight lines in a predictable order, for example:
+- OCR output contains flight lines similar to:
   - `UA5464 DEN SFO 09:43 11:25 1:27 1:14`
-- Date headers appear as `Monday 06-01-2026` (or similar day name + `MM-DD-YYYY`).
-- Crew entries include recognizable tags (`Captain`, `First Officer`, `FA`, `FF`, `CA`).
+- Date headers appear as `Monday 06-01-2026` (day + `MM-DD-YYYY`).
+- Crew tags include one or more of: `Captain`, `First Officer`, `FA`, `FF`, `CA`.
 
 ## Limitations
 
-- OCR noise can still break parsing for heavily distorted screenshots.
-- Tail number and aircraft type defaults are simplified in current parser (`ER7`, empty tail unless source format is extended).
-- Pilot creation/check against Crewlounge API is not implemented in this MVP.
-- No persistent file write/share action yet; current app produces CSV text for copy/export.
+- OCR quality depends on screenshot clarity and ML Kit recognition.
+- Tail number extraction is still simplified (currently empty in exported rows).
+- A/C Type is currently set to `ER7` in parser output.
+- Pilot existence/create flow for Crewlounge API is not implemented yet.
